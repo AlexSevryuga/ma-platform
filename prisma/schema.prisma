@@ -1,0 +1,301 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["queryCompiler", "driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      UserRole @default(ANALYST)
+  company   String?
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  deals       Deal[]
+  documents   Document[]
+  aiInsights  AIInsight[]
+  chatHistory ChatMessage[]
+  activities  Activity[]
+
+  @@map("users")
+}
+
+model Deal {
+  id            String      @id @default(cuid())
+  name          String
+  description   String?
+  company       String
+  targetCompany String?
+  value         Float
+  currency      String      @default("USD")
+  stage         DealStage   @default(LEAD)
+  probability   Int         @default(0) // 0-100
+  priority      Priority    @default(MEDIUM)
+  expectedClose DateTime?
+  actualClose   DateTime?
+  status        DealStatus  @default(ACTIVE)
+  
+  // Financial metrics
+  revenue       Float?
+  ebitda       Float?
+  multiples    String?      // Store valuation multiples as JSON string
+  
+  // AI analysis
+  aiScore      Float?      // AI-generated success probability
+  riskScore    Float?      // AI-generated risk assessment
+  synergyScore Float?      // AI-generated synergy potential
+  
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  // Relations
+  userId       String
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents    Document[]
+  aiInsights   AIInsight[]
+  activities   Activity[]
+  contacts     Contact[]
+  tasks        Task[]
+
+  @@map("deals")
+}
+
+model Document {
+  id          String           @id @default(cuid())
+  name        String
+  type        DocumentType
+  size        Int              // Size in bytes
+  url         String
+  mimeType    String
+  status      DocumentStatus   @default(PENDING)
+  
+  // AI analysis results
+  aiAnalysis  String?          // Store AI analysis results as JSON string
+  extractedText String?        // OCR extracted text
+  keyInsights String?          // AI-generated key insights as JSON string
+  riskFlags   String?          // AI-identified risk flags as JSON string
+  
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  // Relations
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dealId      String?
+  deal        Deal?            @relation(fields: [dealId], references: [id], onDelete: SetNull)
+
+  @@map("documents")
+}
+
+model AIInsight {
+  id          String        @id @default(cuid())
+  type        InsightType
+  title       String
+  description String
+  confidence  Int           // 0-100
+  impact      Impact        @default(MEDIUM)
+  category    String?       // e.g., "financial", "legal", "operational"
+  
+  // AI metadata
+  model       String?       // AI model used
+  tokensUsed  Int?          // Tokens consumed
+  processingTime Int?       // Processing time in ms
+  
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dealId      String?
+  deal        Deal?         @relation(fields: [dealId], references: [id], onDelete: SetNull)
+
+  @@map("ai_insights")
+}
+
+model Contact {
+  id          String   @id @default(cuid())
+  name        String
+  email       String?
+  phone       String?
+  company     String?
+  role        String?
+  type        ContactType @default(EXTERNAL)
+  
+  // Relationship tracking
+  relationshipStrength Int @default(50) // 0-100
+  lastContact DateTime?
+  notes       String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  dealId      String
+  deal        Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@map("contacts")
+}
+
+model Task {
+  id          String      @id @default(cuid())
+  title       String
+  description String?
+  status      TaskStatus  @default(PENDING)
+  priority    Priority    @default(MEDIUM)
+  dueDate     DateTime?
+  completedAt DateTime?
+  
+  // Task metadata
+  estimatedHours Float?
+  actualHours    Float?
+  assignee       String?
+  
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  dealId        String
+  deal          Deal      @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@map("tasks")
+}
+
+model Activity {
+  id          String        @id @default(cuid())
+  type        ActivityType
+  title       String
+  description String?
+  metadata    String?       // Additional activity data as JSON string
+  
+  createdAt   DateTime      @default(now())
+
+  // Relations
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dealId      String?
+  deal        Deal?         @relation(fields: [dealId], references: [id], onDelete: SetNull)
+
+  @@map("activities")
+}
+
+model ChatMessage {
+  id          String   @id @default(cuid())
+  type        MessageType
+  content     String
+  metadata    String?  // Store analysis results, confidence scores, etc. as JSON string
+  
+  createdAt   DateTime @default(now())
+
+  // Relations
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("chat_messages")
+}
+
+// Enums
+enum UserRole {
+  ADMIN
+  MANAGER
+  ANALYST
+  VIEWER
+}
+
+enum DealStage {
+  LEAD
+  QUALIFIED
+  PROPOSAL
+  NEGOTIATION
+  DUE_DILIGENCE
+  CLOSED
+  LOST
+}
+
+enum DealStatus {
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum DocumentType {
+  CONTRACT
+  FINANCIAL
+  LEGAL
+  MARKET_RESEARCH
+  DUE_DILIGENCE
+  PRESENTATION
+  OTHER
+}
+
+enum DocumentStatus {
+  PENDING
+  PROCESSING
+  ANALYZED
+  ERROR
+}
+
+enum InsightType {
+  OPPORTUNITY
+  RISK
+  TREND
+  RECOMMENDATION
+  INSIGHT
+}
+
+enum Impact {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ContactType {
+  INTERNAL
+  EXTERNAL
+  CLIENT
+  VENDOR
+  ADVISOR
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ActivityType {
+  DEAL_CREATED
+  DEAL_UPDATED
+  DOCUMENT_UPLOADED
+  AI_ANALYSIS_COMPLETED
+  CONTACT_ADDED
+  TASK_COMPLETED
+  NOTE_ADDED
+}
+
+enum MessageType {
+  USER
+  AI
+} 
